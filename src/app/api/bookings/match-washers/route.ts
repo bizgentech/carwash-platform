@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     const serviceLocation = { latitude, longitude };
 
     // Calculate distance and score for each washer
-    const washersWithScore: WasherWithDistance[] = washers
+    const washersWithScore = washers
       .map(washer => {
         // Skip washers without coordinates
         if (!washer.latitude || !washer.longitude) {
