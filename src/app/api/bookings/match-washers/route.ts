@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
           longitude: washer.longitude,
         };
       })
-      .filter((w): w is WasherWithDistance => w !== null);
+      .filter(w => w !== null);
 
     if (washersWithScore.length === 0) {
       return NextResponse.json({
