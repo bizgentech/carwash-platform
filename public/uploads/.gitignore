@@ -1,0 +1,11 @@
+# Ignore all uploaded files
+*
+# But keep the directory structure
+!.gitignore
+!washer-applications/
+washer-applications/*
+!washer-applications/id-documents/
+!washer-applications/insurance/
+!washer-applications/vehicles/
+!washer-applications/logos/
+!washer-applications/certificates/

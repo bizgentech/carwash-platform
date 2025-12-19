@@ -1,0 +1,341 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  WASHER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  ACCEPTED
+  ON_THE_WAY
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceType {
+  BASIC
+  STANDARD
+  PREMIUM
+  DETAILING
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  phone             String?   @unique
+  password          String
+  name              String
+  role              UserRole  @default(CUSTOMER)
+  profileImage      String?
+  address           String?   // General address text
+  isActive          Boolean   @default(true)
+  emailVerified     Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Customer fields
+  vehicles          Vehicle[]
+  bookingsAsCustomer Booking[] @relation("CustomerBookings")
+  addresses         Address[]
+  customerPayments  Payment[] @relation("CustomerPayments")
+  
+  // Washer fields
+  isAvailable       Boolean   @default(false)
+  isApproved        Boolean   @default(false)
+  documentsVerified Boolean   @default(false)
+  serviceRadius     Int       @default(10) // in km
+  preferredAreas    String[]  @default([]) // Array of cities/zones
+  latitude          Float?
+  longitude         Float?
+  lastLocationUpdate DateTime?
+  rating            Float     @default(0)
+  totalJobs         Int       @default(0)
+  totalReviews      Int       @default(0)
+  stripeConnectId   String?
+  bookingsAsWasher  Booking[] @relation("WasherBookings")
+  washerPayments    Payment[] @relation("WasherPayments")
+  earnings          Earning[]
+  
+  // Both
+  reviewsGiven      Review[]  @relation("ReviewsGiven")
+  reviewsReceived   Review[]  @relation("ReviewsReceived")
+  notifications     Notification[]
+}
+
+model Vehicle {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  make      String
+  model     String
+  year      Int
+  color     String
+  plateNumber String?
+  size      String   // SMALL, MEDIUM, LARGE, XL
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bookings  Booking[]
+}
+
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  label     String   // Home, Office, etc
+  street    String
+  city      String
+  state     String
+  zipCode   String
+  latitude  Float
+  longitude Float
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bookings  Booking[]
+}
+
+model Service {
+  id          String      @id @default(cuid())
+  name        String
+  type        ServiceType
+  description String
+  basePrice   Float
+  duration    Int         // in minutes
+  features    String[]    // Array of features
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  bookings    Booking[]
+}
+
+model Booking {
+  id            String        @id @default(cuid())
+  customerId    String
+  customer      User          @relation("CustomerBookings", fields: [customerId], references: [id])
+  washerId      String?
+  washer        User?         @relation("WasherBookings", fields: [washerId], references: [id])
+  vehicleId     String
+  vehicle       Vehicle       @relation(fields: [vehicleId], references: [id])
+  serviceId     String
+  service       Service       @relation(fields: [serviceId], references: [id])
+  addressId     String
+  address       Address       @relation(fields: [addressId], references: [id])
+  
+  status        BookingStatus @default(PENDING)
+  scheduledFor  DateTime
+  startedAt     DateTime?
+  completedAt   DateTime?
+  
+  beforePhoto   String?
+  afterPhoto    String?
+  photosApproved Boolean     @default(false)
+  
+  price         Float
+  tip           Float         @default(0)
+  totalAmount   Float
+  
+  customerNotes String?
+  washerNotes   String?
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  payment       Payment?
+  review        Review?
+  notifications Notification[]
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  bookingId       String        @unique
+  booking         Booking       @relation(fields: [bookingId], references: [id])
+  customerId      String
+  customer        User          @relation("CustomerPayments", fields: [customerId], references: [id])
+  washerId        String?
+  washer          User?         @relation("WasherPayments", fields: [washerId], references: [id])
+  
+  amount          Float
+  platformFee     Float         // 20% commission
+  washerAmount    Float         // 80% to washer
+  tip             Float         @default(0)
+  
+  stripePaymentId String?
+  stripeTransferId String?
+  
+  status          PaymentStatus @default(PENDING)
+  paidAt          DateTime?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Earning {
+  id        String   @id @default(cuid())
+  washerId  String
+  washer    User     @relation(fields: [washerId], references: [id])
+  
+  week      Int
+  month     Int
+  year      Int
+  
+  totalJobs Int      @default(0)
+  totalEarnings Float @default(0)
+  totalTips Float    @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([washerId, week, year])
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  bookingId  String   @unique
+  booking    Booking  @relation(fields: [bookingId], references: [id])
+  reviewerId String
+  reviewer   User     @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+  reviewedId String
+  reviewed   User     @relation("ReviewsReceived", fields: [reviewedId], references: [id])
+  
+  rating     Int      // 1-5
+  comment    String?
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+  
+  title     String
+  message   String
+  type      String   // BOOKING, PAYMENT, REVIEW, SYSTEM
+  isRead    Boolean  @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Advertisement {
+  id          String   @id @default(cuid())
+  title       String
+  advertiser  String
+  imageUrl    String
+  targetUrl   String
+  position    String   // HOME_BANNER, BOOKING_SIDEBAR, etc
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  isActive    Boolean  @default(true)
+  startDate   DateTime
+  endDate     DateTime
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum ApplicationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum ServiceTypeEnum {
+  MOBILE
+  FIXED
+  BOTH
+}
+
+enum PaymentAccountType {
+  BANK_ACCOUNT
+  PAYPAL
+  STRIPE
+  OTHER
+}
+
+model WasherApplication {
+  id        String   @id @default(cuid())
+
+  // Personal Information
+  fullName  String
+  email     String
+  phone     String
+  street    String
+  city      String
+  state     String
+  zipCode   String
+
+  // Business Information
+  businessName     String?
+  serviceType      ServiceTypeEnum
+  yearsExperience  Int
+  description      String
+
+  // Documents (Cloudinary URLs)
+  idDocument       String   // Required: ID/License
+  insuranceProof   String   // Required: Insurance
+  vehiclePhoto     String?  // Vehicle photo OR business logo
+  businessLogo     String?
+  certificates     String[] // Optional: Array of certificate URLs
+
+  // Payment Information
+  paymentType           PaymentAccountType
+  bankName              String?
+  accountHolderName     String?
+  routingNumber         String?
+  accountNumber         String?
+  paypalEmail           String?
+  stripeEmail           String?
+  otherPaymentDetails   String?
+
+  // References
+  reference1Name    String?
+  reference1Phone   String?
+  reference1Email   String?
+  reference2Name    String?
+  reference2Phone   String?
+  reference2Email   String?
+
+  // Terms
+  termsAccepted     Boolean  @default(false)
+  termsAcceptedAt   DateTime?
+
+  // Status & Review
+  status            ApplicationStatus @default(PENDING)
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  rejectionReason   String?
+  adminNotes        String?
+
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([email])
+  @@index([status])
+}
