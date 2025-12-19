@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma.payment.findMany({
         where: {
-          status: { in: ['PENDING', 'PROCESSING'] },
+          status: 'PENDING',
         },
         select: {
           washerAmount: true,
